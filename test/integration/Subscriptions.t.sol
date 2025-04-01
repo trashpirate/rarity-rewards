@@ -5,8 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
 
-import {DeployNftRevShareClaimer} from "script/DeployNftRevShareClaimer.s.sol";
-import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
+import {DeployRevenueShare} from "script/DeployRevenueShare.s.sol";
+import {RevenueShare} from "src/RevenueShare.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {CreateSubscription, FundSubscription, AddConsumer} from "script/Subscriptions.s.sol";
 
@@ -60,8 +60,7 @@ contract SubscriptionsTest is Test {
         FundSubscription fundSubscription = new FundSubscription();
         fundSubscription.fundSubscription(functionsRouter, subscriptionId, link, deployerKey);
 
-        NftRevShareClaimer consumer =
-            new NftRevShareClaimer(collection, functionsRouter, subscriptionId, donID, "some code");
+        RevenueShare consumer = new RevenueShare(collection, functionsRouter, subscriptionId, donID, "some code");
 
         // add consumer
         AddConsumer addConsumer = new AddConsumer();

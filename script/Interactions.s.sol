@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
-import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
+import {RevenueShare} from "src/RevenueShare.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
 contract SendRequest is Script {
@@ -18,7 +18,7 @@ contract SendRequest is Script {
             vm.startBroadcast();
         }
 
-        bytes32 requestId = NftRevShareClaimer(consumer).claim(0, 1);
+        bytes32 requestId = RevenueShare(consumer).claim(0, 1);
         vm.stopBroadcast();
         console.log("Request Sent; Request ID: ");
         console.logBytes32(requestId);
@@ -34,7 +34,7 @@ contract SendRequest is Script {
     }
 
     function run() external returns (bytes32) {
-        address consumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
         return sendRequestUsingConfig(consumer);
     }
 }
@@ -45,7 +45,7 @@ contract GetLastResponse is Script {
         console.log("Using Functions Consumer: ", consumer);
 
         vm.startBroadcast();
-        bytes memory response = NftRevShareClaimer(consumer).getLastResponse();
+        bytes memory response = RevenueShare(consumer).getLastResponse();
         vm.stopBroadcast();
         console.log("Response: ", string(response));
         console.log("-------------------------------------------------------");
@@ -53,7 +53,7 @@ contract GetLastResponse is Script {
     }
 
     function run() external returns (bytes memory) {
-        address consumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
         return getLastResponse(consumer);
     }
 }

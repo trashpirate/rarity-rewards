@@ -2,22 +2,22 @@
 pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
-import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
+import {RevenueShare} from "src/RevenueShare.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {CreateSubscription, FundSubscription, AddConsumer} from "./Subscriptions.s.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
 import {LinkToken} from "test/mocks/LinkToken.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
-contract DeployNftRevShareClaimer is Script {
+contract DeployRevenueShare is Script {
     uint96 public constant FUND_AMOUNT = 3 ether;
 
-    function run() external returns (NftRevShareClaimer, HelperConfig) {
+    function run() external returns (RevenueShare, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        NftRevShareClaimer consumer;
+        RevenueShare consumer;
         if (block.chainid != 31337) {
-            address contractAddress = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
-            consumer = NftRevShareClaimer(contractAddress);
+            address contractAddress = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
+            consumer = RevenueShare(contractAddress);
 
             helperConfig.udpateSubscriptionId(consumer.getSubscriptionId());
         } else {
@@ -51,7 +51,7 @@ contract DeployNftRevShareClaimer is Script {
             } else {
                 vm.startBroadcast();
             }
-            consumer = new NftRevShareClaimer(collection, functionsRouter, subscriptionId, donID, functionsCode);
+            consumer = new RevenueShare(collection, functionsRouter, subscriptionId, donID, functionsCode);
             vm.stopBroadcast();
             console.log("Functions Consumer deployed at: %s", address(consumer));
             console.log("-------------------------------------------------------");

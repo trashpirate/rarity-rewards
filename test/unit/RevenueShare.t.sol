@@ -4,21 +4,21 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock, FunctionsResponse} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
-import {DeployNftRevShareClaimer} from "script/DeployNftRevShareClaimer.s.sol";
-import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
+import {DeployRevenueShare} from "script/DeployRevenueShare.s.sol";
+import {RevenueShare} from "src/RevenueShare.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NftRevShareClaimerTest is Test {
+contract RevenueShareTest is Test {
     // configurations
     HelperConfig helperConfig;
     HelperConfig.NetworkConfig networkConfig;
 
     // contracts
-    DeployNftRevShareClaimer deployer;
-    NftRevShareClaimer consumer;
+    DeployRevenueShare deployer;
+    RevenueShare consumer;
     FunctionsRouter router;
     ERC721AMock collection;
     MockERC20 token;
@@ -65,13 +65,15 @@ contract NftRevShareClaimerTest is Test {
     event Claimed(address indexed claimer, uint256 periodId, uint256 amount);
     event Activated(uint256 indexed periodId);
     event Deactivated(uint256 indexed periodId);
+    event ClaimTimeSet(uint256 indexed time);
+    event EmergencyWithdrawal(uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////
                                  SETUP
     //////////////////////////////////////////////////////////////*/
 
     function setUp() external virtual {
-        deployer = new DeployNftRevShareClaimer();
+        deployer = new DeployRevenueShare();
         (consumer, helperConfig) = deployer.run();
 
         networkConfig = helperConfig.getActiveNetworkConfig();
@@ -117,7 +119,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.startTime, block.timestamp);
         assertEq(period.endTime, block.timestamp + 30 days);
         assertEq(period.amount, 100 ether);
@@ -143,7 +145,7 @@ contract NftRevShareClaimerTest is Test {
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.startTime, startTime);
         assertEq(period.endTime, startTime + 30 days);
         assertEq(period.amount, initialAmount + newAmount);
@@ -201,7 +203,7 @@ contract NftRevShareClaimerTest is Test {
         uint256 startTime = block.timestamp + 1 days;
 
         // expect revert
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodActive.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
 
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
@@ -227,7 +229,7 @@ contract NftRevShareClaimerTest is Test {
         uint256 newAmount = 50 ether;
 
         // expect revert
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodExpired.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
 
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
@@ -250,7 +252,7 @@ contract NftRevShareClaimerTest is Test {
         uint256 newAmount = 50 ether;
 
         // expect revert
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__InvalidTokenAddress.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__InvalidTokenAddress.selector);
 
         vm.prank(owner);
         consumer.deposit(0, address(123445), newAmount, startTime);
@@ -267,7 +269,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 0);
 
         vm.prank(owner);
@@ -301,7 +303,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 0);
 
         vm.expectRevert("Only callable by owner");
@@ -319,7 +321,7 @@ contract NftRevShareClaimerTest is Test {
         vm.stopPrank();
 
         // expect revert
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodActive.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
 
         vm.prank(owner);
         consumer.activate(0);
@@ -336,7 +338,7 @@ contract NftRevShareClaimerTest is Test {
         vm.warp(block.timestamp + 31 days);
 
         // expect revert
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodExpired.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
 
         vm.prank(owner);
         consumer.activate(0);
@@ -355,7 +357,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.deposit(0, address(token), amount, block.timestamp);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.amount, amount);
 
         uint256 balanceBefore = token.balanceOf(owner);
@@ -380,7 +382,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.amount, amount);
 
         // make it expired
@@ -431,6 +433,21 @@ contract NftRevShareClaimerTest is Test {
         consumer.withdraw(0);
     }
 
+    function test__Revert__NothingToWithdraw() public {
+        address owner = consumer.owner();
+        uint256 amount = 0;
+
+        vm.startPrank(owner);
+        token.approve(address(consumer), amount);
+        consumer.deposit(0, address(token), amount, block.timestamp);
+        vm.stopPrank();
+
+        vm.expectRevert(RevenueShare.RevenueShare__NothingToWithdraw.selector);
+
+        vm.prank(owner);
+        consumer.withdraw(0);
+    }
+
     function test__Revert__WithdrawWhenActive() public {
         address owner = consumer.owner();
         uint256 amount = 100 ether;
@@ -441,7 +458,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodActive.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
 
         vm.prank(owner);
         consumer.withdraw(0);
@@ -461,7 +478,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        NftRevShareClaimer.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 1);
 
         vm.prank(owner);
@@ -499,7 +516,7 @@ contract NftRevShareClaimerTest is Test {
         consumer.deposit(0, address(token), amount, block.timestamp);
         vm.stopPrank();
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodInactive.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodInactive.selector);
 
         vm.prank(owner);
         consumer.deactivate(0);
@@ -522,8 +539,120 @@ contract NftRevShareClaimerTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
+                         TEST SETCLAIMDURATION
+    //////////////////////////////////////////////////////////////*/
+
+    // success
+    function test__SetClaimTime() public {
+        address owner = consumer.owner();
+        uint256 newDuration = 60 days;
+
+        vm.prank(owner);
+        consumer.setClaimTime(newDuration);
+
+        assertEq(consumer.getClaimTime(), newDuration);
+    }
+
+    // events
+    function test__Emit__ClaimTimeSet() public {
+        address owner = consumer.owner();
+        uint256 newDuration = 60 days;
+
+        vm.expectEmit(true, true, true, true);
+        emit ClaimTimeSet(newDuration);
+
+        vm.prank(owner);
+        consumer.setClaimTime(newDuration);
+    }
+
+    // reverts
+    function test__Revert__OnlyOwnerCanSetClaimTime() public {
+        uint256 newDuration = 60 days;
+
+        vm.expectRevert("Only callable by owner");
+
+        vm.prank(USER);
+        consumer.setClaimTime(newDuration);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                        TEST EMERGENCY WITHDRAW
+    //////////////////////////////////////////////////////////////*/
+
+    // success
+    function test__EmergencyWithdraw() public {
+        address owner = consumer.owner();
+        uint256 amount = 100 ether;
+
+        vm.startPrank(owner);
+        token.approve(address(consumer), amount);
+        consumer.deposit(0, address(token), amount, block.timestamp);
+        consumer.activate(0);
+        vm.stopPrank();
+
+        uint256 balanceBefore = token.balanceOf(owner);
+
+        vm.prank(owner);
+        consumer.emergencyWithdraw(address(token));
+
+        uint256 balanceAfter = token.balanceOf(owner);
+
+        assertEq(amount, balanceAfter - balanceBefore);
+    }
+
+    // emit event
+    function test__Emit__EmergencyWithdrawal() public {
+        address owner = consumer.owner();
+        uint256 amount = 100 ether;
+
+        vm.startPrank(owner);
+        token.approve(address(consumer), amount);
+        consumer.deposit(0, address(token), amount, block.timestamp);
+        consumer.activate(0);
+        vm.stopPrank();
+
+        vm.expectEmit(true, true, true, true);
+        emit EmergencyWithdrawal(amount);
+
+        vm.prank(owner);
+        consumer.emergencyWithdraw(address(token));
+    }
+
+    // revert
+    function test__Revert__OnlyOwnerCanEmergencyWithdraw() public {
+        address owner = consumer.owner();
+        uint256 amount = 100 ether;
+
+        vm.startPrank(owner);
+        token.approve(address(consumer), amount);
+        consumer.deposit(0, address(token), amount, block.timestamp);
+        consumer.activate(0);
+        vm.stopPrank();
+
+        vm.expectRevert("Only callable by owner");
+
+        vm.prank(USER);
+        consumer.emergencyWithdraw(address(token));
+    }
+
+    function test__Revert__EmergencyWithdrawWhenZeroBalance() public {
+        address owner = consumer.owner();
+
+        vm.startPrank(owner);
+        consumer.deposit(0, address(token), 0, block.timestamp);
+        consumer.activate(0);
+        vm.stopPrank();
+
+        vm.expectRevert(RevenueShare.RevenueShare__NothingToWithdraw.selector);
+
+        vm.prank(owner);
+        consumer.emergencyWithdraw(address(token));
+    }
+
+    /*//////////////////////////////////////////////////////////////
                                TEST CLAIM
     //////////////////////////////////////////////////////////////*/
+
     // success
     function test__Claim() public onlyAnvil hasDeposits {
         bytes memory response = "YELLOW";
@@ -563,7 +692,7 @@ contract NftRevShareClaimerTest is Test {
     function test__Revert__ClaimByWrongUser() public hasDeposits {
         address wrongUser = makeAddr("wrong-user");
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__InvalidTokenOwner.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__InvalidTokenOwner.selector);
         vm.prank(wrongUser);
         consumer.claim(0, 1);
     }
@@ -572,9 +701,22 @@ contract NftRevShareClaimerTest is Test {
         vm.prank(USER);
         consumer.claim(0, 1);
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPending.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPending.selector);
         vm.prank(USER);
         consumer.claim(0, 12);
+    }
+
+    function test__Revert__AlreadyClaimed() public hasDeposits {
+        bytes memory response = "YELLOW";
+
+        vm.prank(USER);
+        consumer.claim(0, 1);
+
+        fulfilled(response);
+
+        vm.expectRevert(RevenueShare.RevenueShare__AlreadyClaimed.selector);
+        vm.prank(USER);
+        consumer.claim(0, 1);
     }
 
     function test__Revert__ClaimWhenClaimPeriodInactive() public hasDeposits {
@@ -582,7 +724,7 @@ contract NftRevShareClaimerTest is Test {
         vm.prank(owner);
         consumer.deactivate(0);
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodInactive.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodInactive.selector);
         vm.prank(USER);
         consumer.claim(0, 1);
     }
@@ -590,7 +732,7 @@ contract NftRevShareClaimerTest is Test {
     function test__Revert__ClaimWhenClaimPeriodExpired() public hasDeposits {
         vm.warp(block.timestamp + 31 days);
 
-        vm.expectRevert(NftRevShareClaimer.NftRevShareClaimer__ClaimPeriodExpired.selector);
+        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
         vm.prank(USER);
         consumer.claim(0, 1);
     }
@@ -599,11 +741,29 @@ contract NftRevShareClaimerTest is Test {
                               TEST GETTERS
     //////////////////////////////////////////////////////////////*/
 
+    // success
     function test__GetTraitSize() public view {
         assertEq(consumer.getTraitSize("GREEN"), 790);
         assertEq(consumer.getTraitSize("BLUE"), 100);
         assertEq(consumer.getTraitSize("YELLOW"), 80);
         assertEq(consumer.getTraitSize("RED"), 20);
         assertEq(consumer.getTraitSize("PURPLE"), 10);
+    }
+
+    function test__GetLastResponse() public onlyAnvil hasDeposits {
+        bytes memory response = "YELLOW";
+
+        vm.prank(USER);
+        consumer.claim(0, 1);
+
+        fulfilled(response);
+
+        assertEq(consumer.getLastResponse(), response);
+    }
+
+    // reverts
+    function test__Revert__GetInvalidTrait() public {
+        vm.expectRevert(RevenueShare.RevenueShare__InvalidTrait.selector);
+        consumer.getTraitSize("GREY");
     }
 }

@@ -28,8 +28,8 @@ build:; forge build
 test :; forge test 
 
 # test coverage
-coverage:; @forge coverage --contracts src
-coverage-report:; @forge coverage --contracts src --report debug > coverage.txt
+coverage:; @forge coverage --contracts src --ir-minimum
+coverage-report:; @forge coverage --contracts src --report debug > coverage.txt --ir-minimum
 
 # take snapshot
 snapshot :; forge snapshot

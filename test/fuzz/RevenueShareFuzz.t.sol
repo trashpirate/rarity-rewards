@@ -4,21 +4,21 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock, FunctionsResponse} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
-import {DeployNftRevShareClaimer} from "script/DeployNftRevShareClaimer.s.sol";
-import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
+import {DeployRevenueShare} from "script/DeployRevenueShare.s.sol";
+import {RevenueShare} from "src/RevenueShare.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract NftRevShareClaimerTest is Test {
+contract RevenueShareTest is Test {
     // configurations
     HelperConfig helperConfig;
     HelperConfig.NetworkConfig networkConfig;
 
     // contracts
-    DeployNftRevShareClaimer deployer;
-    NftRevShareClaimer consumer;
+    DeployRevenueShare deployer;
+    RevenueShare consumer;
     FunctionsRouter router;
     ERC721AMock collection;
     MockERC20 token;
@@ -59,7 +59,7 @@ contract NftRevShareClaimerTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() external virtual {
-        deployer = new DeployNftRevShareClaimer();
+        deployer = new DeployRevenueShare();
         (consumer, helperConfig) = deployer.run();
 
         networkConfig = helperConfig.getActiveNetworkConfig();

@@ -103,7 +103,7 @@ contract AddConsumer is Script {
     }
 
     function run() external {
-        address functionsConsumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
+        address functionsConsumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
         addConsumerUsingConfig(functionsConsumer);
     }
 }

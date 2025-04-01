@@ -12,11 +12,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
- * @title NftRevShareClaimer
+ * @title RevenueShare
  * @author Nadina Oates
  * @notice Simple Chainlink Functions contract
  */
-contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
+contract RevenueShare is FunctionsClient, ConfirmedOwner {
     using FunctionsRequest for FunctionsRequest.Request;
     using SafeERC20 for IERC20;
 
@@ -31,7 +31,7 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
     struct ClaimPeriod {
         address token;
         uint256 amount;
-        uint256 claimed;
+        uint256 totalClaimed;
         uint256 startTime;
         uint256 endTime;
         Status status;
@@ -43,8 +43,6 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
 
     string private constant TRAIT_TYPE = "Color";
     uint256 private constant NUM_TRAITS = 5;
-    uint256 private constant TOTAL_SUPPLY = 1000;
-    uint256 private constant PRECISION = 1e18;
 
     IERC721A private immutable i_collection;
 
@@ -57,52 +55,48 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
     bytes private s_lastResponse;
     bytes private s_lastError;
 
-    uint256 private s_claimDuration;
+    uint256 private s_claimTime;
+    uint256 private s_tokenIdToBeClaimed;
     uint256 private s_periodToBeClaimed;
-    address private s_currentClaimer;
+    address private s_claimer;
 
     mapping(uint256 period => ClaimPeriod) private s_period;
+    mapping(uint256 period => mapping(uint256 tokenId => bool)) claimedTokenIds;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
     //////////////////////////////////////////////////////////////*/
     event Response(bytes32 indexed requestId, bytes response, bytes err);
-    event RequestRevertedWithErrorMsg(string reason);
-    event RequestRevertedWithoutErrorMsg(bytes data);
     event Withdrawal(address indexed token, uint256 indexed periodId, uint256 indexed amount);
     event Deposit(address indexed token, uint256 indexed periodId, uint256 indexed amount);
     event Claimed(address indexed claimer, uint256 periodId, uint256 amount);
     event Activated(uint256 indexed periodId);
     event Deactivated(uint256 indexed periodId);
+    event ClaimTimeSet(uint256 indexed time);
+    event EmergencyWithdrawal(uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
     error UnexpectedRequestID(bytes32 requestId);
-    error NftRevShareClaimer__ClaimPending();
-    error NftRevShareClaimer__InvalidTokenOwner();
-    error NftRevShareClaimer__InvalidTrait();
-    error NftRevShareClaimer__ClaimPeriodExpired();
-    error NftRevShareClaimer__InvalidTokenAddress();
-    error NftRevShareClaimer__ClaimPeriodInactive();
-    error NftRevShareClaimer__ClaimPeriodActive();
-    error NftRevShareClaimer__NothingToWithdraw();
+    error RevenueShare__ClaimPending();
+    error RevenueShare__InvalidTokenOwner();
+    error RevenueShare__InvalidTrait();
+    error RevenueShare__ClaimPeriodExpired();
+    error RevenueShare__InvalidTokenAddress();
+    error RevenueShare__ClaimPeriodInactive();
+    error RevenueShare__ClaimPeriodActive();
+    error RevenueShare__NothingToWithdraw();
+    error RevenueShare__AlreadyClaimed();
 
     /*//////////////////////////////////////////////////////////////
                                MODIFIERS
     //////////////////////////////////////////////////////////////*/
 
-    modifier noPendingClaim() {
-        if (s_currentClaimer != address(0)) {
-            revert NftRevShareClaimer__ClaimPending();
-        }
-        _;
-    }
-
     modifier notExpired(uint256 period) {
         uint256 endTime = s_period[period].endTime;
         if (endTime > 0 && endTime < block.timestamp) {
-            revert NftRevShareClaimer__ClaimPeriodExpired();
+            revert RevenueShare__ClaimPeriodExpired();
         }
         _;
     }
@@ -111,10 +105,10 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
         uint256 endTime = s_period[period].endTime;
         if (endTime > 0 && endTime < block.timestamp) {
             s_period[period].status = Status.INACTIVE;
-            revert NftRevShareClaimer__ClaimPeriodExpired();
+            revert RevenueShare__ClaimPeriodExpired();
         }
         if (s_period[period].status != Status.ACTIVE) {
-            revert NftRevShareClaimer__ClaimPeriodInactive();
+            revert RevenueShare__ClaimPeriodInactive();
         }
         _;
     }
@@ -125,7 +119,7 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
             s_period[period].status = Status.INACTIVE;
         }
         if (s_period[period].status == Status.ACTIVE) {
-            revert NftRevShareClaimer__ClaimPeriodActive();
+            revert RevenueShare__ClaimPeriodActive();
         }
         _;
     }
@@ -144,7 +138,7 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
 
         i_collection = IERC721A(collection);
 
-        s_claimDuration = 30 days;
+        s_claimTime = 30 days;
     }
 
     // receive / fallback functions
@@ -169,13 +163,13 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
         ClaimPeriod memory period = s_period[periodId];
 
         if (period.amount > 0 && token != period.token) {
-            revert NftRevShareClaimer__InvalidTokenAddress();
+            revert RevenueShare__InvalidTokenAddress();
         }
 
         // update state variables
         period.amount += amount;
         period.startTime = startTime;
-        period.endTime = startTime + s_claimDuration;
+        period.endTime = startTime + s_claimTime;
         period.token = token;
 
         s_period[periodId] = period;
@@ -194,7 +188,7 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
 
         uint256 amount = period.amount;
         if (amount == 0) {
-            revert NftRevShareClaimer__NothingToWithdraw();
+            revert RevenueShare__NothingToWithdraw();
         }
 
         delete s_period[periodId];
@@ -222,6 +216,31 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
     }
 
     /**
+     *  @notice Set the claim duration
+     *  @param time The duration for claim periods.
+     */
+    function setClaimTime(uint256 time) external onlyOwner {
+        s_claimTime = time;
+        emit ClaimTimeSet(time);
+    }
+
+    /**
+     *  @notice Withdraws funds from contract
+     *  @dev DO NOT USE THIS WHEN CLAIMING IS RUNNING!
+     *  @param token The token to be withdrawn
+     */
+    function emergencyWithdraw(address token) external onlyOwner {
+        uint256 balance = IERC20(token).balanceOf(address(this));
+
+        if (balance == 0) {
+            revert RevenueShare__NothingToWithdraw();
+        }
+
+        emit EmergencyWithdrawal(balance);
+        IERC20(token).safeTransfer(msg.sender, balance);
+    }
+
+    /**
      *  @notice Send a simple request
      *  @param periodId period to claim from
      *  @param tokenId token id for NFT to claim rewards fro
@@ -230,17 +249,29 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
         external
         notExpired(periodId)
         isActive(periodId)
-        noPendingClaim
         returns (bytes32 requestId)
     {
+        // check if claim is pending
+        if (s_claimer != address(0)) {
+            revert RevenueShare__ClaimPending();
+        }
+
+        // check if tokenId valid
+        if (claimedTokenIds[periodId][tokenId]) {
+            revert RevenueShare__AlreadyClaimed();
+        }
+
+        // or check if tokenId same
+        s_tokenIdToBeClaimed = tokenId;
+
         // retrieve owner of NFT
         address tokenOwner = i_collection.ownerOf(tokenId);
 
         // check owner is valid
         if (msg.sender != tokenOwner) {
-            revert NftRevShareClaimer__InvalidTokenOwner();
+            revert RevenueShare__InvalidTokenOwner();
         }
-        s_currentClaimer = tokenOwner;
+        s_claimer = tokenOwner;
 
         // retrieve token uri
         string memory tokenUri = i_collection.tokenURI(tokenId);
@@ -262,27 +293,6 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
 
         return s_lastRequestId;
     }
-
-    /**
-     * @notice Send a pre-encoded CBOR request
-     * @param request CBOR-encoded request data
-     * @param subscriptionId Billing ID
-     * @param gasLimit The maximum amount of gas the request can consume
-     * @param donID ID of the job to be invoked
-     * @return requestId The ID of the sent request
-     */
-    function sendRequestCBOR(bytes memory request, uint64 subscriptionId, uint32 gasLimit, bytes32 donID)
-        external
-        onlyOwner
-        returns (bytes32 requestId)
-    {
-        s_lastRequestId = _sendRequest(request, subscriptionId, gasLimit, donID);
-        return s_lastRequestId;
-    }
-
-    /*//////////////////////////////////////////////////////////////
-                            PUBLIC FUNCTIONS
-    //////////////////////////////////////////////////////////////*/
 
     /*//////////////////////////////////////////////////////////////
                            INTERNAL FUNCTIONS
@@ -308,24 +318,30 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
         string memory trait = string(response);
 
         uint256 periodId = s_periodToBeClaimed;
-        address claimer = s_currentClaimer;
+        address claimer = s_claimer;
         ClaimPeriod memory period = s_period[periodId];
 
         // calculate share based on trait
         // each trait gets 1 / 5 of amount
         // share = amount * 1 / NUM_TRAITS * 1 / i_traitSize[trait]
         uint256 payout = period.amount / (NUM_TRAITS * _getTraitSize(trait));
-        if (period.amount - period.claimed < payout) {
-            payout = period.amount - period.claimed;
+        if (period.amount - period.totalClaimed < payout) {
+            payout = period.amount - period.totalClaimed;
         }
 
         // update state variables
-        period.claimed += payout;
+        period.totalClaimed += payout;
         s_period[periodId] = period;
-        delete s_currentClaimer;
+        claimedTokenIds[periodId][s_tokenIdToBeClaimed] = true;
+
+        delete s_periodToBeClaimed;
+        delete s_tokenIdToBeClaimed;
+        delete s_claimer;
 
         // transfer funds
         emit Claimed(claimer, periodId, payout);
+
+        // check for balance in contract?
         IERC20(period.token).safeTransfer(claimer, payout);
     }
 
@@ -341,7 +357,7 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
         if (key == keccak256("RED")) return 20;
         if (key == keccak256("PURPLE")) return 10;
 
-        revert NftRevShareClaimer__InvalidTrait();
+        revert RevenueShare__InvalidTrait();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -350,6 +366,10 @@ contract NftRevShareClaimer is FunctionsClient, ConfirmedOwner {
 
     function getClaimPeriod(uint256 periodId) external view returns (ClaimPeriod memory) {
         return s_period[periodId];
+    }
+
+    function getClaimTime() external view returns (uint256) {
+        return s_claimTime;
     }
 
     function getTraitSize(string memory trait) external pure returns (uint256) {
