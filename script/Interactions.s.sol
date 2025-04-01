@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
-import {FunctionsConsumer} from "src/FunctionsConsumer.sol";
+import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
 contract SendRequest is Script {
@@ -18,11 +18,7 @@ contract SendRequest is Script {
             vm.startBroadcast();
         }
 
-        string[] memory args = new string[](2);
-        args[0] = "ipfs://bafybeic2a7jdsztni6jsnq2oarb3o5g7iuya5r4lcjfqi64rsucirdfobm/124";
-        args[1] = "Color";
-
-        bytes32 requestId = FunctionsConsumer(consumer).sendRequest(args);
+        bytes32 requestId = NftRevShareClaimer(consumer).claim(0, 1);
         vm.stopBroadcast();
         console.log("Request Sent; Request ID: ");
         console.logBytes32(requestId);
@@ -32,13 +28,13 @@ contract SendRequest is Script {
 
     function sendRequestUsingConfig(address consumer) public returns (bytes32) {
         HelperConfig helperConfig = new HelperConfig();
-        (,,,, uint256 deployerKey) = helperConfig.activeNetworkConfig();
+        (,,,,, uint256 deployerKey) = helperConfig.activeNetworkConfig();
 
         return sendRequest(consumer, deployerKey);
     }
 
     function run() external returns (bytes32) {
-        address consumer = DevOpsTools.get_most_recent_deployment("FunctionsConsumer", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
         return sendRequestUsingConfig(consumer);
     }
 }
@@ -49,7 +45,7 @@ contract GetLastResponse is Script {
         console.log("Using Functions Consumer: ", consumer);
 
         vm.startBroadcast();
-        bytes memory response = FunctionsConsumer(consumer).getLastResponse();
+        bytes memory response = NftRevShareClaimer(consumer).getLastResponse();
         vm.stopBroadcast();
         console.log("Response: ", string(response));
         console.log("-------------------------------------------------------");
@@ -57,7 +53,7 @@ contract GetLastResponse is Script {
     }
 
     function run() external returns (bytes memory) {
-        address consumer = DevOpsTools.get_most_recent_deployment("FunctionsConsumer", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
         return getLastResponse(consumer);
     }
 }

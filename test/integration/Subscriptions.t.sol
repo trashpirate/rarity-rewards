@@ -5,8 +5,8 @@ import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
 
-import {DeployFunctionsConsumer} from "script/DeployFunctionsConsumer.s.sol";
-import {FunctionsConsumer} from "src/FunctionsConsumer.sol";
+import {DeployNftRevShareClaimer} from "script/DeployNftRevShareClaimer.s.sol";
+import {NftRevShareClaimer} from "src/NftRevShareClaimer.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {CreateSubscription, FundSubscription, AddConsumer} from "script/Subscriptions.s.sol";
 
@@ -15,6 +15,7 @@ contract SubscriptionsTest is Test {
     HelperConfig helperConfig;
 
     // helpers
+    address collection;
     address functionsRouter;
     address link;
     bytes32 donID;
@@ -23,7 +24,7 @@ contract SubscriptionsTest is Test {
 
     function setUp() external virtual {
         helperConfig = new HelperConfig();
-        (functionsRouter, link, donID,, deployerKey) = helperConfig.activeNetworkConfig();
+        (collection, functionsRouter, link, donID,, deployerKey) = helperConfig.activeNetworkConfig();
     }
 
     function test__CreateSubscription() public {
@@ -59,7 +60,8 @@ contract SubscriptionsTest is Test {
         FundSubscription fundSubscription = new FundSubscription();
         fundSubscription.fundSubscription(functionsRouter, subscriptionId, link, deployerKey);
 
-        FunctionsConsumer consumer = new FunctionsConsumer(functionsRouter, subscriptionId, donID, "some code");
+        NftRevShareClaimer consumer =
+            new NftRevShareClaimer(collection, functionsRouter, subscriptionId, donID, "some code");
 
         // add consumer
         AddConsumer addConsumer = new AddConsumer();

@@ -14,7 +14,7 @@ contract CreateSubscription is Script {
     function createSubscriptionUsingConfig() public returns (uint64) {
         HelperConfig helperConfig = new HelperConfig();
 
-        (address functionsRouter,,,, uint256 deployerKey) = helperConfig.activeNetworkConfig();
+        (, address functionsRouter,,,, uint256 deployerKey) = helperConfig.activeNetworkConfig();
 
         return createSubscription(functionsRouter, deployerKey);
     }
@@ -50,7 +50,8 @@ contract FundSubscription is Script {
     function fundSubscriptionConfig() public {
         HelperConfig helperConfig = new HelperConfig();
 
-        (address functionsRouter, address link,, uint64 subId, uint256 deployerKey) = helperConfig.activeNetworkConfig();
+        (, address functionsRouter, address link,, uint64 subId, uint256 deployerKey) =
+            helperConfig.activeNetworkConfig();
 
         fundSubscription(functionsRouter, subId, link, deployerKey);
     }
@@ -96,13 +97,13 @@ contract AddConsumer is Script {
 
     function addConsumerUsingConfig(address functionsConsumer) public {
         HelperConfig helperConfig = new HelperConfig();
-        (address functionsRouter,,, uint64 subId, uint256 deployerKey) = helperConfig.activeNetworkConfig();
+        (, address functionsRouter,,, uint64 subId, uint256 deployerKey) = helperConfig.activeNetworkConfig();
 
         addConsumer(functionsConsumer, functionsRouter, subId, deployerKey);
     }
 
     function run() external {
-        address functionsConsumer = DevOpsTools.get_most_recent_deployment("FunctionsConsumer", block.chainid);
+        address functionsConsumer = DevOpsTools.get_most_recent_deployment("NftRevShareClaimer", block.chainid);
         addConsumerUsingConfig(functionsConsumer);
     }
 }

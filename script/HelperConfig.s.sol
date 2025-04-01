@@ -3,7 +3,7 @@ pragma solidity 0.8.26;
 
 import {Script, console, console2} from "forge-std/Script.sol";
 import {FunctionsRouterMock} from "test/mocks/FunctionsRouterMock.sol";
-
+import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
 import {LinkToken} from "test/mocks/LinkToken.sol";
 
 contract HelperConfig is Script {
@@ -14,6 +14,7 @@ contract HelperConfig is Script {
     }
 
     struct NetworkConfig {
+        address collection;
         address functionsRouter;
         address link;
         bytes32 donID;
@@ -47,6 +48,7 @@ contract HelperConfig is Script {
 
     function _getMainnetConfig() internal pure returns (NetworkConfig memory) {
         return NetworkConfig({
+            collection: 0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6,
             functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
             link: 0x404460C6A5EdE2D891e8297795264fDe62ADBB75,
             donID: 0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000,
@@ -57,6 +59,7 @@ contract HelperConfig is Script {
 
     function _getTestnetConfig() internal view returns (NetworkConfig memory) {
         return NetworkConfig({
+            collection: 0x77b6d8dEcfc2DfEdb53be9fA527D7939aF0e592c,
             functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
             link: 0x84b9B910527Ad5C03A9Ca831909E21e236EA7b06,
             donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000,
@@ -65,7 +68,12 @@ contract HelperConfig is Script {
         });
     }
 
-    function _getFunctionsAnvilConfig() internal view returns (NetworkConfig memory) {
+    function _getFunctionsAnvilConfig() internal returns (NetworkConfig memory) {
+        vm.startBroadcast();
+        // Deploy NFT Collection
+        ERC721AMock collection = new ERC721AMock("NFT Collection", "NFTC");
+        vm.stopBroadcast();
+
         string memory root = vm.projectRoot();
         string memory path = string.concat(root, "/functions-toolkit/local-network/cf-network-config.json");
         string memory json = vm.readFile(path);
@@ -80,6 +88,7 @@ contract HelperConfig is Script {
         console.log("-------------------------------------------------------");
 
         return NetworkConfig({
+            collection: address(collection),
             functionsRouter: config.functionsRouter,
             link: config.linkToken,
             donID: bytes32(bytes(config.donID)), // mock donID
@@ -93,6 +102,9 @@ contract HelperConfig is Script {
         maxCallbackGasLimits[0] = 500000;
 
         vm.startBroadcast();
+
+        // Deploy NFT Collection
+        ERC721AMock collection = new ERC721AMock("NFT Collection", "NFTC");
 
         // Deploy LINK token
         LinkToken linkToken = new LinkToken();
@@ -117,6 +129,7 @@ contract HelperConfig is Script {
         vm.stopBroadcast();
 
         return NetworkConfig({
+            collection: address(collection),
             functionsRouter: address(router),
             link: address(linkToken),
             donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000, // mock donID
