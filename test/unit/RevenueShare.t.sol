@@ -48,9 +48,10 @@ contract RevenueShareTest is Test {
 
     function fulfilled(bytes memory response) internal {
         if (block.chainid == 31337) {
+            uint256 gasLeft = gasleft();
             (FunctionsResponse.FulfillResult resultCode,) = FunctionsRouterMock(address(router)).fulfill(response);
+            console.log("Request Mock fulfilled with gas: ", gasLeft - gasleft());
             assertEq(uint256(resultCode), 0);
-            console.log("Request Mock fulfilled.");
         }
     }
 
@@ -759,6 +760,19 @@ contract RevenueShareTest is Test {
         fulfilled(response);
 
         assertEq(consumer.getLastResponse(), response);
+    }
+
+    function test__GetClaims() public onlyAnvil hasDeposits {
+        bytes memory response = "YELLOW";
+
+        vm.prank(USER);
+        consumer.claim(0, 1);
+
+        fulfilled(response);
+
+        RevenueShare.Claims memory claims = consumer.getClaims(0, USER);
+
+        assertEq(claims.numClaimed, 1);
     }
 
     // reverts

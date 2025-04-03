@@ -25,16 +25,25 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     //////////////////////////////////////////////////////////////*/
     enum Status {
         INACTIVE,
-        ACTIVE
+        ACTIVE,
+        EXPIRED
     }
 
     struct ClaimPeriod {
+        uint256 id;
         address token;
         uint256 amount;
         uint256 totalClaimed;
         uint256 startTime;
         uint256 endTime;
         Status status;
+    }
+
+    struct Claims {
+        uint256 periodId;
+        address claimer;
+        uint256 amount;
+        uint256 numClaimed;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -61,7 +70,8 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     address private s_claimer;
 
     mapping(uint256 period => ClaimPeriod) private s_period;
-    mapping(uint256 period => mapping(uint256 tokenId => bool)) claimedTokenIds;
+    mapping(uint256 period => mapping(uint256 tokenId => bool)) private s_claimedTokenIds;
+    mapping(uint256 period => mapping(address claimer => Claims)) private s_claims;
 
     /*//////////////////////////////////////////////////////////////
                                  EVENTS
@@ -94,31 +104,24 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     //////////////////////////////////////////////////////////////*/
 
     modifier notExpired(uint256 period) {
-        uint256 endTime = s_period[period].endTime;
-        if (endTime > 0 && endTime < block.timestamp) {
+        if (_isExpired(period)) {
             revert RevenueShare__ClaimPeriodExpired();
         }
         _;
     }
 
-    modifier isActive(uint256 period) {
-        uint256 endTime = s_period[period].endTime;
-        if (endTime > 0 && endTime < block.timestamp) {
-            s_period[period].status = Status.INACTIVE;
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-        if (s_period[period].status != Status.ACTIVE) {
+    modifier isActiveAndNotExpired(uint256 period) {
+        if (!_isActive(period)) {
             revert RevenueShare__ClaimPeriodInactive();
         }
+        if (_isExpired(period)) {
+            revert RevenueShare__ClaimPeriodExpired();
+        }
         _;
     }
 
-    modifier isInactive(uint256 period) {
-        uint256 endTime = s_period[period].endTime;
-        if (endTime > 0 && endTime < block.timestamp) {
-            s_period[period].status = Status.INACTIVE;
-        }
-        if (s_period[period].status == Status.ACTIVE) {
+    modifier notActive(uint256 period) {
+        if (_isActive(period) && !_isExpired(period)) {
             revert RevenueShare__ClaimPeriodActive();
         }
         _;
@@ -154,13 +157,17 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      *   @param amount The amount to be deposited
      *   @param startTime The start time of the period
      */
-    function deposit(uint256 periodId, address token, uint256 amount, uint256 startTime)
-        external
-        onlyOwner
-        isInactive(periodId)
-        notExpired(periodId)
-    {
+    function deposit(uint256 periodId, address token, uint256 amount, uint256 startTime) external onlyOwner {
         ClaimPeriod memory period = s_period[periodId];
+        _updateStatus(period);
+
+        if (_isExpired(periodId)) {
+            revert RevenueShare__ClaimPeriodExpired();
+        }
+
+        if (_isActive(periodId)) {
+            revert RevenueShare__ClaimPeriodActive();
+        }
 
         if (period.amount > 0 && token != period.token) {
             revert RevenueShare__InvalidTokenAddress();
@@ -171,6 +178,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         period.startTime = startTime;
         period.endTime = startTime + s_claimTime;
         period.token = token;
+        period.id = periodId;
 
         s_period[periodId] = period;
 
@@ -183,8 +191,13 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      * @notice Withdraws funds from specified period, only possible when period inactive
      * @param periodId The period to be withdrawn from
      */
-    function withdraw(uint256 periodId) external onlyOwner isInactive(periodId) {
+    function withdraw(uint256 periodId) external onlyOwner {
         ClaimPeriod memory period = s_period[periodId];
+        _updateStatus(period);
+
+        if (_isActive(periodId)) {
+            revert RevenueShare__ClaimPeriodActive();
+        }
 
         uint256 amount = period.amount;
         if (amount == 0) {
@@ -201,7 +214,18 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      *  @notice Activate a claim period
      *  @param periodId The period to be activated
      */
-    function activate(uint256 periodId) external onlyOwner notExpired(periodId) isInactive(periodId) {
+    function activate(uint256 periodId) external onlyOwner {
+        ClaimPeriod memory period = s_period[periodId];
+        _updateStatus(period);
+
+        if (_isExpired(periodId)) {
+            revert RevenueShare__ClaimPeriodExpired();
+        }
+
+        if (_isActive(periodId)) {
+            revert RevenueShare__ClaimPeriodActive();
+        }
+
         s_period[periodId].status = Status.ACTIVE;
         emit Activated(periodId);
     }
@@ -210,7 +234,18 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      * @notice Deactives a claim period
      * @param periodId Period to be deactivated
      */
-    function deactivate(uint256 periodId) external onlyOwner isActive(periodId) {
+    function deactivate(uint256 periodId) external onlyOwner {
+        ClaimPeriod memory period = s_period[periodId];
+        _updateStatus(period);
+
+        if (_isExpired(periodId)) {
+            revert RevenueShare__ClaimPeriodExpired();
+        }
+
+        if (_isInactive(periodId)) {
+            revert RevenueShare__ClaimPeriodInactive();
+        }
+
         s_period[periodId].status = Status.INACTIVE;
         emit Deactivated(periodId);
     }
@@ -245,19 +280,25 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      *  @param periodId period to claim from
      *  @param tokenId token id for NFT to claim rewards fro
      */
-    function claim(uint256 periodId, uint256 tokenId)
-        external
-        notExpired(periodId)
-        isActive(periodId)
-        returns (bytes32 requestId)
-    {
+    function claim(uint256 periodId, uint256 tokenId) external returns (bytes32 requestId) {
+        ClaimPeriod memory period = s_period[periodId];
+        _updateStatus(period);
+
+        if (_isExpired(periodId)) {
+            revert RevenueShare__ClaimPeriodExpired();
+        }
+
+        if (_isInactive(periodId)) {
+            revert RevenueShare__ClaimPeriodInactive();
+        }
+
         // check if claim is pending
         if (s_claimer != address(0)) {
             revert RevenueShare__ClaimPending();
         }
 
         // check if tokenId valid
-        if (claimedTokenIds[periodId][tokenId]) {
+        if (s_claimedTokenIds[periodId][tokenId]) {
             revert RevenueShare__AlreadyClaimed();
         }
 
@@ -318,6 +359,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         string memory trait = string(response);
 
         uint256 periodId = s_periodToBeClaimed;
+        uint256 tokenId = s_tokenIdToBeClaimed;
         address claimer = s_claimer;
         ClaimPeriod memory period = s_period[periodId];
 
@@ -329,10 +371,18 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
             payout = period.amount - period.totalClaimed;
         }
 
-        // update state variables
+        // update claims
+        Claims memory claims = s_claims[periodId][claimer];
+        claims.periodId = periodId;
+        claims.claimer = claimer;
+        claims.amount += payout;
+        claims.numClaimed++;
+        s_claims[periodId][claimer] = claims;
+
+        // update period
         period.totalClaimed += payout;
         s_period[periodId] = period;
-        claimedTokenIds[periodId][s_tokenIdToBeClaimed] = true;
+        s_claimedTokenIds[periodId][tokenId] = true;
 
         delete s_periodToBeClaimed;
         delete s_tokenIdToBeClaimed;
@@ -348,6 +398,45 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     /*//////////////////////////////////////////////////////////////
                            PRIVATE FUNCTIONS
     //////////////////////////////////////////////////////////////*/
+
+    /**
+     * @notice Update status of claim period
+     * @param period The period to be updated
+     */
+    function _updateStatus(ClaimPeriod memory period) private {
+        if (period.endTime > 0 && period.endTime < block.timestamp) {
+            s_period[period.id].status = Status.EXPIRED;
+        }
+    }
+
+    /**
+     * @notice Check if claim period is expired
+     * @param periodId The period to be checked
+     */
+    function _isExpired(uint256 periodId) private view returns (bool) {
+        return s_period[periodId].status == Status.EXPIRED;
+    }
+
+    /**
+     * @notice Check if claim period is active
+     * @param periodId The period to be checked
+     */
+    function _isActive(uint256 periodId) private view returns (bool) {
+        return s_period[periodId].status == Status.ACTIVE;
+    }
+
+    /**
+     * @notice Check if claim period is active
+     * @param periodId The period to be checked
+     */
+    function _isInactive(uint256 periodId) private view returns (bool) {
+        return s_period[periodId].status == Status.INACTIVE;
+    }
+
+    /**
+     * @notice Get the size of a trait
+     * @param trait The trait to be checked
+     */
     function _getTraitSize(string memory trait) private pure returns (uint256) {
         bytes32 key = keccak256(abi.encodePacked(trait));
 
@@ -363,6 +452,9 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     /*//////////////////////////////////////////////////////////////
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
+    function getClaims(uint256 periodId, address claimer) external view returns (Claims memory) {
+        return s_claims[periodId][claimer];
+    }
 
     function getClaimPeriod(uint256 periodId) external view returns (ClaimPeriod memory) {
         return s_period[periodId];

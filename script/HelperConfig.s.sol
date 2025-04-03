@@ -61,9 +61,9 @@ contract HelperConfig is Script {
         return NetworkConfig({
             collection: 0x77b6d8dEcfc2DfEdb53be9fA527D7939aF0e592c,
             functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
-            link: 0x84b9B910527Ad5C03A9Ca831909E21e236EA7b06,
-            donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000,
-            subscriptionId: 0,
+            link: 0xE4aB69C077896252FAFBD49EFD26B5D171A32410,
+            donID: 0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000,
+            subscriptionId: 298,
             deployerKey: vm.envUint("ANVIL_DEFAULT_KEY")
         });
     }
@@ -142,7 +142,7 @@ contract HelperConfig is Script {
                                 FUNCTIONS
     //////////////////////////////////////////////////////////////*/
 
-    function udpateSubscriptionId(uint64 newSubId) public {
+    function updateSubscriptionId(uint64 newSubId) public {
         activeNetworkConfig.subscriptionId = newSubId;
     }
 

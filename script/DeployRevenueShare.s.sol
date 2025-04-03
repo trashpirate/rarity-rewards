@@ -15,48 +15,49 @@ contract DeployRevenueShare is Script {
     function run() external returns (RevenueShare, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         RevenueShare consumer;
-        if (block.chainid != 31337) {
-            address contractAddress = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
-            consumer = RevenueShare(contractAddress);
+        // if (block.chainid != 31337 && block.chainid != 1337) {
+        //     address contractAddress = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
+        //     consumer = RevenueShare(contractAddress);
 
-            helperConfig.udpateSubscriptionId(consumer.getSubscriptionId());
+        //     helperConfig.updateSubscriptionId(consumer.getSubscriptionId());
+        // } else {
+        string memory functionsCode = vm.readFile("functions-toolkit/source/code.js");
+        console.log("Functions Code Length: %s", bytes(functionsCode).length);
+        // console.log("Functions Code: %s", functionsCode);
+
+        (
+            address collection,
+            address functionsRouter,
+            address link,
+            bytes32 donID,
+            uint64 subscriptionId,
+            uint256 deployerKey
+        ) = helperConfig.activeNetworkConfig();
+
+        if (subscriptionId == 0) {
+            // create subscription
+            CreateSubscription createSubscription = new CreateSubscription();
+            subscriptionId = createSubscription.createSubscription(functionsRouter, deployerKey);
+
+            // fund subscription
+            FundSubscription fundSubscription = new FundSubscription();
+            fundSubscription.fundSubscription(functionsRouter, subscriptionId, link, deployerKey);
+        }
+
+        console.log("--------------------- DEPLOY CONSUMER --------------------");
+
+        if (block.chainid == 31337 || block.chainid == 1337) {
+            vm.startBroadcast(deployerKey);
         } else {
-            string memory functionsCode = vm.readFile("functions-toolkit/source/code.js");
-            console.log("Functions Code Length: %s", bytes(functionsCode).length);
-            // console.log("Functions Code: %s", functionsCode);
+            vm.startBroadcast();
+        }
+        consumer = new RevenueShare(collection, functionsRouter, subscriptionId, donID, functionsCode);
+        vm.stopBroadcast();
+        console.log("Functions Consumer deployed at: %s", address(consumer));
+        console.log("-------------------------------------------------------");
 
-            (
-                address collection,
-                address functionsRouter,
-                address link,
-                bytes32 donID,
-                uint64 subscriptionId,
-                uint256 deployerKey
-            ) = helperConfig.activeNetworkConfig();
-
-            if (subscriptionId == 0) {
-                // create subscription
-                CreateSubscription createSubscription = new CreateSubscription();
-                subscriptionId = createSubscription.createSubscription(functionsRouter, deployerKey);
-
-                // fund subscription
-                FundSubscription fundSubscription = new FundSubscription();
-                fundSubscription.fundSubscription(functionsRouter, subscriptionId, link, deployerKey);
-            }
-
-            console.log("--------------------- DEPLOY CONSUMER --------------------");
-
-            if (block.chainid == 31337 || block.chainid == 1337) {
-                vm.startBroadcast(deployerKey);
-            } else {
-                vm.startBroadcast();
-            }
-            consumer = new RevenueShare(collection, functionsRouter, subscriptionId, donID, functionsCode);
-            vm.stopBroadcast();
-            console.log("Functions Consumer deployed at: %s", address(consumer));
-            console.log("-------------------------------------------------------");
-
-            // add consumer
+        // // add consumer
+        if (block.chainid == 31337 || block.chainid == 1337) {
             AddConsumer addConsumer = new AddConsumer();
             addConsumer.addConsumer(address(consumer), functionsRouter, subscriptionId, deployerKey);
         }

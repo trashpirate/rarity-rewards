@@ -48,21 +48,36 @@ slither :; slither ./src
 
 # deployment
 deploy-local: 
-	@forge script script/DeployFunctionsConsumer.s.sol:DeployFunctionsConsumer --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
+	@forge script script/DeployRevenueShare.s.sol:DeployRevenueShare --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
+
+deploy-token-testnet: 
+	@forge script script/DeployMockERC20.s.sol:DeployMockERC20 --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 
 deploy-testnet: 
-	@forge script script/DeployFunctionsConsumer.s.sol:DeployFunctionsConsumer --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
+	@forge script script/DeployRevenueShare.s.sol:DeployRevenueShare --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 
 # interactions
-send-request:
-	@forge script script/Interactions.s.sol:SendRequest --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
+mint-mock:
+	@forge script script/Interactions.s.sol:MintMockNft --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
 
-get-response:
-	@forge script script/Interactions.s.sol:GetLastResponse --rpc-url $(RPC_LOCALHOST) -vv
+claim:
+	@forge script script/Interactions.s.sol:Claim --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
+
+deposit:
+	@forge script script/Interactions.s.sol:Deposit --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
 
 # command line interaction
 contract-call:
 	@cast call <contract address> "FunctionSignature(params)(returns)" arguments --rpc-url ${<RPC>}
+
+link-balance:
+	@cast call 0x5587f8cf1D624ee675fE501f5630aA229e4E1BE9 "balanceOf(address)(uint256)" 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url ${RPC_LOCALHOST}
+
+get-claims:
+	@cast call 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 "getClaims(uint256,address)(uint256,address,uint256,uint256)" 0 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266 --rpc-url ${RPC_LOCALHOST}
+
+get-period:
+	@cast call 0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9 "getClaimPeriod(uint256)(uint256,address,uint256,uint256,uint256,uint256,uint256)" 0 --rpc-url ${RPC_LOCALHOST}
 
 # chainlink function simulation
 start-local-network :; npx ts-node functions-toolkit/local-network/start.ts
