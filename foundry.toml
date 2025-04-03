@@ -8,6 +8,8 @@ optimizer = true
 optimizer_rounds = 200
 fs_permissions = [{ access = "read", path = "./broadcast" },{ access = "read", path = "./functions-toolkit" }]
 
+[etherscan]
+unknown_chain = { key = "${TENDERLY_KEY}", chain = 882799, url = "${RPC_TENDERLY}/verify/etherscan" }
 
 [fuzz]
 runs = 10000

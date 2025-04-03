@@ -15,15 +15,8 @@ contract DeployRarityRewards is Script {
     function run() external returns (RarityRewards, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         RarityRewards consumer;
-        // if (block.chainid != 31337 && block.chainid != 1337) {
-        //     address contractAddress = DevOpsTools.get_most_recent_deployment("RarityRewards", block.chainid);
-        //     consumer = RarityRewards(contractAddress);
-
-        //     helperConfig.updateSubscriptionId(consumer.getSubscriptionId());
-        // } else {
         string memory functionsCode = vm.readFile("functions-toolkit/source/code.js");
         console.log("Functions Code Length: %s", bytes(functionsCode).length);
-        // console.log("Functions Code: %s", functionsCode);
 
         (
             address collection,

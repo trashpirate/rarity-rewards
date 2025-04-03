@@ -53,6 +53,9 @@ deploy-local:
 deploy-token-testnet: 
 	@forge script script/DeployMockERC20.s.sol:DeployMockERC20 --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 
+deploy-tenderly: 
+	@forge script script/DeployRarityRewards.s.sol:DeployRarityRewards --rpc-url $(RPC_TENDERLY) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${TENDERLY_KEY} --verifier-url ${RPC_TENDERLY}/verify/etherscan -vvvv
+
 deploy-testnet: 
 	@forge script script/DeployRarityRewards.s.sol:DeployRarityRewards --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 

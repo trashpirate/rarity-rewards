@@ -31,7 +31,7 @@ contract HelperConfig is Script {
     address public constant ANVIL_DEFAULT_ADDRESS = 0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266;
 
     constructor() {
-        if (block.chainid == 8453 || block.chainid == 123) {
+        if (block.chainid == 8453 || block.chainid == 123 || block.chainid == 882799) {
             activeNetworkConfig = _getMainnetConfig();
         } else if (block.chainid == 84532 || block.chainid == 84531) {
             activeNetworkConfig = _getTestnetConfig();
@@ -46,12 +46,23 @@ contract HelperConfig is Script {
                           CHAIN CONFIGURATIONS
     //////////////////////////////////////////////////////////////*/
 
+    // function _getMainnetConfig() internal pure returns (NetworkConfig memory) {
+    //     return NetworkConfig({
+    //         collection: 0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6,
+    //         functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
+    //         link: 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196,
+    //         donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000,
+    //         subscriptionId: 52,
+    //         deployerKey: uint256(0x0)
+    //     });
+    // }
+
     function _getMainnetConfig() internal pure returns (NetworkConfig memory) {
         return NetworkConfig({
-            collection: 0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6,
-            functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
-            link: 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196,
-            donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000,
+            collection: 0x12A961E8cC6c94Ffd0ac08deB9cde798739cF775,
+            functionsRouter: 0x65Dcc24F8ff9e51F10DCc7Ed1e4e2A61e6E14bd6,
+            link: 0x514910771AF9Ca656af840dff83E8264EcF986CA,
+            donID: 0x66756e2d657468657265756d2d6d61696e6e65742d3100000000000000000000,
             subscriptionId: 52,
             deployerKey: uint256(0x0)
         });
