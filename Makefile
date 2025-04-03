@@ -48,13 +48,16 @@ slither :; slither ./src
 
 # deployment
 deploy-local: 
-	@forge script script/DeployRevenueShare.s.sol:DeployRevenueShare --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
+	@forge script script/DeployRarityRewards.s.sol:DeployRarityRewards --rpc-url $(RPC_LOCALHOST) --private-key ${DEFAULT_ANVIL_KEY} --sender ${DEFAULT_ANVIL_ADDRESS} --broadcast -vv
 
 deploy-token-testnet: 
 	@forge script script/DeployMockERC20.s.sol:DeployMockERC20 --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 
 deploy-testnet: 
-	@forge script script/DeployRevenueShare.s.sol:DeployRevenueShare --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
+	@forge script script/DeployRarityRewards.s.sol:DeployRarityRewards --rpc-url $(RPC_TEST) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
+
+deploy-mainnet: 
+	@forge script script/DeployRarityRewards.s.sol:DeployRarityRewards --rpc-url $(RPC_MAIN) --account ${ACCOUNT_NAME} --sender ${ACCOUNT_ADDRESS} --broadcast --verify --etherscan-api-key ${ETHERSCAN_KEY} -vvvv
 
 # interactions
 mint-mock:

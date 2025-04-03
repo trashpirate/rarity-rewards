@@ -12,11 +12,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
- * @title RevenueShare
+ * @title RarityRewards
  * @author Nadina Oates
  * @notice Simple Chainlink Functions contract
  */
-contract RevenueShare is FunctionsClient, ConfirmedOwner {
+contract RarityRewards is FunctionsClient, ConfirmedOwner {
     using FunctionsRequest for FunctionsRequest.Request;
     using SafeERC20 for IERC20;
 
@@ -56,10 +56,10 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     IERC721A private immutable i_collection;
 
     uint64 private immutable i_subId;
-    uint32 private immutable i_gasLimit;
     bytes32 private immutable i_donID;
     string private i_source;
 
+    uint32 private s_gasLimit;
     bytes32 private s_lastRequestId;
     bytes private s_lastResponse;
     bytes private s_lastError;
@@ -83,49 +83,24 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     event Activated(uint256 indexed periodId);
     event Deactivated(uint256 indexed periodId);
     event ClaimTimeSet(uint256 indexed time);
+    event GasLimitSet(uint32 indexed gasLimit);
     event EmergencyWithdrawal(uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////
                                  ERRORS
     //////////////////////////////////////////////////////////////*/
     error UnexpectedRequestID(bytes32 requestId);
-    error RevenueShare__ClaimPending();
-    error RevenueShare__InvalidTokenOwner();
-    error RevenueShare__InvalidTrait();
-    error RevenueShare__ClaimPeriodExpired();
-    error RevenueShare__InvalidTokenAddress();
-    error RevenueShare__ClaimPeriodInactive();
-    error RevenueShare__ClaimPeriodActive();
-    error RevenueShare__NothingToWithdraw();
-    error RevenueShare__AlreadyClaimed();
-
-    /*//////////////////////////////////////////////////////////////
-                               MODIFIERS
-    //////////////////////////////////////////////////////////////*/
-
-    modifier notExpired(uint256 period) {
-        if (_isExpired(period)) {
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-        _;
-    }
-
-    modifier isActiveAndNotExpired(uint256 period) {
-        if (!_isActive(period)) {
-            revert RevenueShare__ClaimPeriodInactive();
-        }
-        if (_isExpired(period)) {
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-        _;
-    }
-
-    modifier notActive(uint256 period) {
-        if (_isActive(period) && !_isExpired(period)) {
-            revert RevenueShare__ClaimPeriodActive();
-        }
-        _;
-    }
+    error RarityRewards__ClaimPending();
+    error RarityRewards__InvalidTokenOwner();
+    error RarityRewards__InvalidTrait();
+    error RarityRewards__ClaimPeriodExpired();
+    error RarityRewards__InvalidTokenAddress();
+    error RarityRewards__ClaimPeriodInactive();
+    error RarityRewards__ClaimPeriodMustBeInactive(Status status);
+    error RarityRewards__ClaimPeriodMustBeActive(Status status);
+    error RarityRewards__ClaimPeriodActive();
+    error RarityRewards__NothingToWithdraw();
+    error RarityRewards__AlreadyClaimed();
 
     /*//////////////////////////////////////////////////////////////
                                FUNCTIONS
@@ -134,12 +109,12 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         FunctionsClient(router)
         ConfirmedOwner(msg.sender)
     {
+        i_collection = IERC721A(collection);
+
         i_subId = subId;
-        i_gasLimit = 300_000;
         i_donID = donId;
         i_source = source;
-
-        i_collection = IERC721A(collection);
+        s_gasLimit = 300_000;
 
         s_claimTime = 30 days;
     }
@@ -158,32 +133,25 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      *   @param startTime The start time of the period
      */
     function deposit(uint256 periodId, address token, uint256 amount, uint256 startTime) external onlyOwner {
-        ClaimPeriod memory period = s_period[periodId];
-        _updateStatus(period);
+        _updateStatus(periodId);
 
-        if (_isExpired(periodId)) {
-            revert RevenueShare__ClaimPeriodExpired();
+        if (!_isInactive(periodId)) {
+            revert RarityRewards__ClaimPeriodMustBeInactive(s_period[periodId].status);
         }
 
-        if (_isActive(periodId)) {
-            revert RevenueShare__ClaimPeriodActive();
-        }
-
-        if (period.amount > 0 && token != period.token) {
-            revert RevenueShare__InvalidTokenAddress();
+        if (s_period[periodId].amount > 0 && token != s_period[periodId].token) {
+            revert RarityRewards__InvalidTokenAddress();
         }
 
         // update state variables
-        period.amount += amount;
-        period.startTime = startTime;
-        period.endTime = startTime + s_claimTime;
-        period.token = token;
-        period.id = periodId;
-
-        s_period[periodId] = period;
+        s_period[periodId].amount += amount;
+        s_period[periodId].startTime = startTime;
+        s_period[periodId].endTime = startTime + s_claimTime;
+        s_period[periodId].token = token;
+        s_period[periodId].id = periodId;
 
         // transfer funds
-        emit Deposit(period.token, periodId, amount);
+        emit Deposit(s_period[periodId].token, periodId, amount);
         IERC20(token).safeTransferFrom(msg.sender, address(this), amount);
     }
 
@@ -192,22 +160,22 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      * @param periodId The period to be withdrawn from
      */
     function withdraw(uint256 periodId) external onlyOwner {
-        ClaimPeriod memory period = s_period[periodId];
-        _updateStatus(period);
+        _updateStatus(periodId);
 
         if (_isActive(periodId)) {
-            revert RevenueShare__ClaimPeriodActive();
+            revert RarityRewards__ClaimPeriodMustBeInactive(s_period[periodId].status);
         }
 
-        uint256 amount = period.amount;
+        uint256 amount = s_period[periodId].amount;
         if (amount == 0) {
-            revert RevenueShare__NothingToWithdraw();
+            revert RarityRewards__NothingToWithdraw();
         }
 
+        address token = s_period[periodId].token;
         delete s_period[periodId];
 
-        emit Withdrawal(period.token, periodId, amount);
-        IERC20(period.token).safeTransfer(msg.sender, amount);
+        emit Withdrawal(token, periodId, amount);
+        IERC20(token).safeTransfer(msg.sender, amount);
     }
 
     /**
@@ -215,15 +183,10 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      *  @param periodId The period to be activated
      */
     function activate(uint256 periodId) external onlyOwner {
-        ClaimPeriod memory period = s_period[periodId];
-        _updateStatus(period);
+        _updateStatus(periodId);
 
-        if (_isExpired(periodId)) {
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-
-        if (_isActive(periodId)) {
-            revert RevenueShare__ClaimPeriodActive();
+        if (!_isInactive(periodId)) {
+            revert RarityRewards__ClaimPeriodMustBeInactive(s_period[periodId].status);
         }
 
         s_period[periodId].status = Status.ACTIVE;
@@ -235,15 +198,10 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
      * @param periodId Period to be deactivated
      */
     function deactivate(uint256 periodId) external onlyOwner {
-        ClaimPeriod memory period = s_period[periodId];
-        _updateStatus(period);
+        _updateStatus(periodId);
 
-        if (_isExpired(periodId)) {
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-
-        if (_isInactive(periodId)) {
-            revert RevenueShare__ClaimPeriodInactive();
+        if (!_isActive(periodId)) {
+            revert RarityRewards__ClaimPeriodMustBeActive(s_period[periodId].status);
         }
 
         s_period[periodId].status = Status.INACTIVE;
@@ -260,6 +218,15 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     }
 
     /**
+     *  @notice Set gas limit
+     *  @param gasLimit gas limit
+     */
+    function setGasLimit(uint32 gasLimit) external onlyOwner {
+        s_gasLimit = gasLimit;
+        emit GasLimitSet(gasLimit);
+    }
+
+    /**
      *  @notice Withdraws funds from contract
      *  @dev DO NOT USE THIS WHEN CLAIMING IS RUNNING!
      *  @param token The token to be withdrawn
@@ -268,7 +235,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         uint256 balance = IERC20(token).balanceOf(address(this));
 
         if (balance == 0) {
-            revert RevenueShare__NothingToWithdraw();
+            revert RarityRewards__NothingToWithdraw();
         }
 
         emit EmergencyWithdrawal(balance);
@@ -278,28 +245,23 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     /**
      *  @notice Send a simple request
      *  @param periodId period to claim from
-     *  @param tokenId token id for NFT to claim rewards fro
+     *  @param tokenId token id for NFT to claim rewards for
      */
     function claim(uint256 periodId, uint256 tokenId) external returns (bytes32 requestId) {
-        ClaimPeriod memory period = s_period[periodId];
-        _updateStatus(period);
+        _updateStatus(periodId);
 
-        if (_isExpired(periodId)) {
-            revert RevenueShare__ClaimPeriodExpired();
-        }
-
-        if (_isInactive(periodId)) {
-            revert RevenueShare__ClaimPeriodInactive();
+        if (!_isActive(periodId)) {
+            revert RarityRewards__ClaimPeriodMustBeActive(s_period[periodId].status);
         }
 
         // check if claim is pending
         if (s_claimer != address(0)) {
-            revert RevenueShare__ClaimPending();
+            revert RarityRewards__ClaimPending();
         }
 
         // check if tokenId valid
         if (s_claimedTokenIds[periodId][tokenId]) {
-            revert RevenueShare__AlreadyClaimed();
+            revert RarityRewards__AlreadyClaimed();
         }
 
         // or check if tokenId same
@@ -310,17 +272,16 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
 
         // check owner is valid
         if (msg.sender != tokenOwner) {
-            revert RevenueShare__InvalidTokenOwner();
+            revert RarityRewards__InvalidTokenOwner();
         }
         s_claimer = tokenOwner;
 
         // retrieve token uri
-        string memory tokenUri = i_collection.tokenURI(tokenId);
         s_periodToBeClaimed = periodId;
 
         // prepare arguments
         string[] memory args = new string[](2);
-        args[0] = tokenUri;
+        args[0] = i_collection.tokenURI(tokenId);
         args[1] = TRAIT_TYPE;
 
         // prepare request
@@ -329,10 +290,11 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         req.setArgs(args);
 
         // send request
-        s_lastRequestId = _sendRequest(req.encodeCBOR(), i_subId, i_gasLimit, i_donID);
+        requestId = _sendRequest(req.encodeCBOR(), i_subId, s_gasLimit, i_donID);
+        s_lastRequestId = requestId;
         emit RequestSent(requestId);
 
-        return s_lastRequestId;
+        return requestId;
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -361,27 +323,27 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         uint256 periodId = s_periodToBeClaimed;
         uint256 tokenId = s_tokenIdToBeClaimed;
         address claimer = s_claimer;
-        ClaimPeriod memory period = s_period[periodId];
+
+        uint256 totalAmount = s_period[periodId].amount;
+        uint256 totalClaimed = s_period[periodId].totalClaimed;
+        address token = s_period[periodId].token;
 
         // calculate share based on trait
         // each trait gets 1 / 5 of amount
         // share = amount * 1 / NUM_TRAITS * 1 / i_traitSize[trait]
-        uint256 payout = period.amount / (NUM_TRAITS * _getTraitSize(trait));
-        if (period.amount - period.totalClaimed < payout) {
-            payout = period.amount - period.totalClaimed;
+        uint256 payout = totalAmount / (NUM_TRAITS * _getTraitSize(trait));
+        if (totalAmount - totalClaimed < payout) {
+            payout = totalAmount - totalClaimed;
         }
 
         // update claims
-        Claims memory claims = s_claims[periodId][claimer];
-        claims.periodId = periodId;
-        claims.claimer = claimer;
-        claims.amount += payout;
-        claims.numClaimed++;
-        s_claims[periodId][claimer] = claims;
+        s_claims[periodId][claimer].periodId = periodId;
+        s_claims[periodId][claimer].claimer = claimer;
+        s_claims[periodId][claimer].amount += payout;
+        s_claims[periodId][claimer].numClaimed++;
 
         // update period
-        period.totalClaimed += payout;
-        s_period[periodId] = period;
+        s_period[periodId].totalClaimed += payout;
         s_claimedTokenIds[periodId][tokenId] = true;
 
         delete s_periodToBeClaimed;
@@ -392,7 +354,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         emit Claimed(claimer, periodId, payout);
 
         // check for balance in contract?
-        IERC20(period.token).safeTransfer(claimer, payout);
+        IERC20(token).safeTransfer(claimer, payout);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -401,11 +363,15 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
 
     /**
      * @notice Update status of claim period
-     * @param period The period to be updated
+     * @param periodId The period to be updated
      */
-    function _updateStatus(ClaimPeriod memory period) private {
-        if (period.endTime > 0 && period.endTime < block.timestamp) {
-            s_period[period.id].status = Status.EXPIRED;
+    function _updateStatus(uint256 periodId) private {
+        uint256 startTime = s_period[periodId].startTime;
+        uint256 endTime = s_period[periodId].endTime;
+        if (endTime > 0 && endTime < block.timestamp) {
+            s_period[periodId].status = Status.EXPIRED;
+        } else if (startTime > 0 && startTime < block.timestamp) {
+            s_period[periodId].status = Status.ACTIVE;
         }
     }
 
@@ -446,7 +412,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
         if (key == keccak256("RED")) return 20;
         if (key == keccak256("PURPLE")) return 10;
 
-        revert RevenueShare__InvalidTrait();
+        revert RarityRewards__InvalidTrait();
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -477,7 +443,7 @@ contract RevenueShare is FunctionsClient, ConfirmedOwner {
     }
 
     function getGasLimit() external view returns (uint32) {
-        return i_gasLimit;
+        return s_gasLimit;
     }
 
     function getDonID() external view returns (bytes32) {

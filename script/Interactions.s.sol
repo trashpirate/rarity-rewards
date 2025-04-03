@@ -3,7 +3,7 @@ pragma solidity ^0.8.20;
 
 import {Script, console} from "forge-std/Script.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
-import {RevenueShare} from "src/RevenueShare.sol";
+import {RarityRewards} from "src/RarityRewards.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
@@ -58,8 +58,8 @@ contract Deposit is Script {
         }
 
         IERC20(link).approve(consumer, STARTING_DEPOSIT);
-        RevenueShare(consumer).deposit(0, link, STARTING_DEPOSIT, block.timestamp);
-        RevenueShare(consumer).activate(0);
+        RarityRewards(consumer).deposit(0, link, STARTING_DEPOSIT, block.timestamp);
+        RarityRewards(consumer).activate(0);
         vm.stopBroadcast();
 
         console.log("Deposit completed: ", STARTING_DEPOSIT);
@@ -74,7 +74,7 @@ contract Deposit is Script {
     }
 
     function run() external {
-        address consumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("RarityRewards", block.chainid);
         depositUsingConfig(consumer);
     }
 }
@@ -91,7 +91,7 @@ contract Claim is Script {
             vm.startBroadcast();
         }
 
-        bytes32 requestId = RevenueShare(consumer).claim(0, 1);
+        bytes32 requestId = RarityRewards(consumer).claim(0, 1);
         vm.stopBroadcast();
         console.log("Request Sent; Request ID: ");
         console.logBytes32(requestId);
@@ -107,7 +107,7 @@ contract Claim is Script {
     }
 
     function run() external returns (bytes32) {
-        address consumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("RarityRewards", block.chainid);
         return claimUsingConfig(consumer);
     }
 }
@@ -118,7 +118,7 @@ contract GetLastResponse is Script {
         console.log("Using Functions Consumer: ", consumer);
 
         vm.startBroadcast();
-        bytes memory response = RevenueShare(consumer).getLastResponse();
+        bytes memory response = RarityRewards(consumer).getLastResponse();
         vm.stopBroadcast();
         console.log("Response: ", string(response));
         console.log("-------------------------------------------------------");
@@ -126,7 +126,7 @@ contract GetLastResponse is Script {
     }
 
     function run() external returns (bytes memory) {
-        address consumer = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
+        address consumer = DevOpsTools.get_most_recent_deployment("RarityRewards", block.chainid);
         return getLastResponse(consumer);
     }
 }

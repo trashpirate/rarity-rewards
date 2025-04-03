@@ -2,22 +2,22 @@
 pragma solidity 0.8.26;
 
 import {Script, console} from "forge-std/Script.sol";
-import {RevenueShare} from "src/RevenueShare.sol";
+import {RarityRewards} from "src/RarityRewards.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 import {CreateSubscription, FundSubscription, AddConsumer} from "./Subscriptions.s.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
 import {LinkToken} from "test/mocks/LinkToken.sol";
 import {DevOpsTools} from "foundry-devops/src/DevOpsTools.sol";
 
-contract DeployRevenueShare is Script {
+contract DeployRarityRewards is Script {
     uint96 public constant FUND_AMOUNT = 3 ether;
 
-    function run() external returns (RevenueShare, HelperConfig) {
+    function run() external returns (RarityRewards, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
-        RevenueShare consumer;
+        RarityRewards consumer;
         // if (block.chainid != 31337 && block.chainid != 1337) {
-        //     address contractAddress = DevOpsTools.get_most_recent_deployment("RevenueShare", block.chainid);
-        //     consumer = RevenueShare(contractAddress);
+        //     address contractAddress = DevOpsTools.get_most_recent_deployment("RarityRewards", block.chainid);
+        //     consumer = RarityRewards(contractAddress);
 
         //     helperConfig.updateSubscriptionId(consumer.getSubscriptionId());
         // } else {
@@ -51,7 +51,7 @@ contract DeployRevenueShare is Script {
         } else {
             vm.startBroadcast();
         }
-        consumer = new RevenueShare(collection, functionsRouter, subscriptionId, donID, functionsCode);
+        consumer = new RarityRewards(collection, functionsRouter, subscriptionId, donID, functionsCode);
         vm.stopBroadcast();
         console.log("Functions Consumer deployed at: %s", address(consumer));
         console.log("-------------------------------------------------------");

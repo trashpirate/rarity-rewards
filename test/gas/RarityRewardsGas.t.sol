@@ -4,21 +4,21 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock, FunctionsResponse} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
-import {DeployRevenueShare} from "script/DeployRevenueShare.s.sol";
-import {RevenueShare} from "src/RevenueShare.sol";
+import {DeployRarityRewards} from "script/DeployRarityRewards.s.sol";
+import {RarityRewards} from "src/RarityRewards.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract RevenueShareTest is Test {
+contract RarityRewardsTest is Test {
     // configurations
     HelperConfig helperConfig;
     HelperConfig.NetworkConfig networkConfig;
 
     // contracts
-    DeployRevenueShare deployer;
-    RevenueShare consumer;
+    DeployRarityRewards deployer;
+    RarityRewards consumer;
     FunctionsRouter router;
     ERC721AMock collection;
     MockERC20 token;
@@ -28,6 +28,8 @@ contract RevenueShareTest is Test {
     uint256 constant STARTING_DEPOSIT = 1000 ether;
     address USER = makeAddr("user");
     string[5] TRAITS = ["GREEN", "BLUE", "YELLOW", "RED", "PURPLE"];
+
+    mapping(uint256 period => RarityRewards.ClaimPeriod) public s_period;
 
     modifier onlyAnvil() {
         if (block.chainid != 31337) {
@@ -59,7 +61,7 @@ contract RevenueShareTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() external virtual {
-        deployer = new DeployRevenueShare();
+        deployer = new DeployRarityRewards();
         (consumer, helperConfig) = deployer.run();
 
         networkConfig = helperConfig.getActiveNetworkConfig();
@@ -75,24 +77,49 @@ contract RevenueShareTest is Test {
     }
 
     /*//////////////////////////////////////////////////////////////
-                               TEST CLAIM
+                              GAS TEST CHECKS
     //////////////////////////////////////////////////////////////*/
-    function test__Fuzz__Claim(uint256 seed) public onlyAnvil hasDeposits {
-        seed = bound(seed, 0, 4);
-        bytes memory response = bytes(TRAITS[seed]);
-        uint256 balanceBefore = token.balanceOf(USER);
 
-        vm.prank(USER);
-        consumer.claim(0, 1);
+    function _updateStatus(RarityRewards.ClaimPeriod memory period) private returns (RarityRewards.Status) {
+        if (period.endTime > 0 && period.endTime < block.timestamp) {
+            s_period[period.id].status = RarityRewards.Status.EXPIRED;
+        }
+        return period.status;
+    }
 
-        fulfilled(response);
+    function _isExpired(RarityRewards.ClaimPeriod memory period) private returns (bool) {
+        return _updateStatus(period) == RarityRewards.Status.EXPIRED;
+    }
 
-        uint256 balanceAfter = token.balanceOf(USER);
-        uint256 claimed = balanceAfter - balanceBefore;
-        console.log("User claimed: ", claimed);
+    function _isActive(uint256 periodId) private view returns (bool) {
+        return s_period[periodId].status == RarityRewards.Status.ACTIVE;
+    }
 
-        // rewards calculation -> response == YELLOW
-        uint256 expectedReward = STARTING_DEPOSIT / TRAITS.length / consumer.getTraitSize(TRAITS[seed]);
-        assertEq(claimed, expectedReward);
+    function test__Gas__IsExpired() public hasDeposits {
+        // vm.warp(block.timestamp + 31 days); // expired
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        uint256 gasLeft = gasleft();
+        _isExpired(period);
+        console.log("_isExpired: ", gasLeft - gasleft());
+        // Gas: 262 / expired: 22463
+    }
+
+    function test__Gas__UpdateState() public hasDeposits {
+        // vm.warp(block.timestamp + 31 days); // expired
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        uint256 gasLeft = gasleft();
+        _updateStatus(period);
+        console.log("_updateState: ", gasLeft - gasleft());
+        // Gas: 191 (if expired: 22392)
+    }
+
+    function test__Gas__IsActive() public hasDeposits {
+        // vm.warp(block.timestamp + 31 days); // expired
+        // RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        // reading period.id instead of hardcoded 0 consumes 9 gas
+        uint256 gasLeft = gasleft();
+        _isActive(0);
+        console.log("_isActive: ", gasLeft - gasleft());
+        // Gas: 2324
     }
 }

@@ -1,9 +1,9 @@
-# CHAINLINK FUNCTIONS STARTER
+# Rarity Rewards
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg?style=for-the-badge)
 ![Forge](https://img.shields.io/badge/forge-v0.2.0-blue.svg?style=for-the-badge)
 ![Solc](https://img.shields.io/badge/solc-v0.8.20-blue.svg?style=for-the-badge)
-[![GitHub License](https://img.shields.io/github/license/trashpirate/foundry-starter?style=for-the-badge)](https://github.com/trashpirate/foundry-starter/blob/master/LICENSE)
+[![GitHub License](https://img.shields.io/github/license/trashpirate/rarity-rewards?style=for-the-badge)](https://github.com/trashpirate/rarity-rewards/blob/master/LICENSE)
 
 [![Website: trashpirate.io](https://img.shields.io/badge/Portfolio-00e0a7?style=for-the-badge&logo=Website)](https://trashpirate.io)
 [![LinkedIn: nadinaoates](https://img.shields.io/badge/LinkedIn-0a66c2?style=for-the-badge&logo=LinkedIn&logoColor=f5f5f5)](https://linkedin.com/in/nadinaoates)
@@ -11,7 +11,10 @@
 
 
 ## About
-This repo contains the smart contracts allowing users to claim monthly (or any other interval) revenue share. The claiming is token gated and based on NFT traits that are fetched through [Chainlink Functions](https://docs.chain.link/chainlink-functions/). For each month, the owner can deposit the total revenue share amount and define the start date of the claiming period. The users can claim their share of the revenue by calling the `claim()` function, which will transfer their share to their wallet.
+This repo contains the smart contracts allowing users to claim monthly (or any other interval) rewards. The claiming is token gated and based on NFT rarity that are fetched through [Chainlink Functions](https://docs.chain.link/chainlink-functions/). For each month, the owner can deposit the total reward amount and define the start date of the claiming period. The users can claim their share of the reward by calling the `claim()` function, which will transfer their share to their wallet.
+
+**Contract Design**
+![diagram](https://github.com/trashpirate/rarity-rewards/blob/master/diagram.jpg?raw=true)
 
 ## Installation
 
@@ -64,17 +67,22 @@ $ make deploy-mainnet
 
 ### Testnet
 
-**Mock ERC20 Contract:** https://sepolia.basescan.org/address/0xc8bdd7805fad8dc59b753fecccdf17b98c17465b#code
-
 **ERC20 Contract:** https://sepolia.basescan.org/address/0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6#code
 
 **ERC721 Contract:**  https://sepolia.basescan.org/token/0x77b6d8decfc2dfedb53be9fa527d7939af0e592c#code
 
-**RevenueShare Contract:** 
+**RarityRewards Contract:** https://sepolia.basescan.org/address/0x32De94416278dc7D0a32034EAf3Cb7243a6048E1#code
 
-https://sepolia.basescan.org/address/0xee54de507ab45659f7aed9f2bbb624c6abcfe744#code
 
 ### Mainnet
+
+**ERC20 Contract:** https://basescan.org/token/0x803b629c339941e2b77d2dc499dac9e1fd9eac66#code
+
+**ERC721 Contract:**  https://basescan.org/address/0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6#code
+
+**RarityRewards Contract:** https://basescan.org/address/0x47ad28668b541cd0de8eb11e3090fb37e69f8a60#code
+
+
 
 ## Chainlink Functions Simulations
 

@@ -50,9 +50,9 @@ contract HelperConfig is Script {
         return NetworkConfig({
             collection: 0xE9e5d3F02E91B8d3bc74Cf7cc27d6F13bdfc0BB6,
             functionsRouter: 0xf9B8fc078197181C841c296C876945aaa425B278,
-            link: 0x404460C6A5EdE2D891e8297795264fDe62ADBB75,
-            donID: 0x66756e2d626173652d7365706f6c69612d310000000000000000000000000000,
-            subscriptionId: 0,
+            link: 0x88Fb150BDc53A65fe94Dea0c9BA0a6dAf8C6e196,
+            donID: 0x66756e2d626173652d6d61696e6e65742d310000000000000000000000000000,
+            subscriptionId: 52,
             deployerKey: uint256(0x0)
         });
     }

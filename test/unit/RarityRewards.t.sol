@@ -4,21 +4,21 @@ pragma solidity 0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {FunctionsRouterMock, FunctionsResponse} from "test/mocks/FunctionsRouterMock.sol";
 import {FunctionsRouter} from "@chainlink/contracts/src/v0.8/functions/v1_0_0/FunctionsRouter.sol";
-import {DeployRevenueShare} from "script/DeployRevenueShare.s.sol";
-import {RevenueShare} from "src/RevenueShare.sol";
+import {DeployRarityRewards} from "script/DeployRarityRewards.s.sol";
+import {RarityRewards} from "src/RarityRewards.sol";
 import {HelperConfig} from "script/HelperConfig.s.sol";
 import {ERC721AMock} from "@erc721a/contracts/mocks/ERC721AMock.sol";
 import {MockERC20} from "solmate/test/utils/mocks/MockERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract RevenueShareTest is Test {
+contract RarityRewardsTest is Test {
     // configurations
     HelperConfig helperConfig;
     HelperConfig.NetworkConfig networkConfig;
 
     // contracts
-    DeployRevenueShare deployer;
-    RevenueShare consumer;
+    DeployRarityRewards deployer;
+    RarityRewards consumer;
     FunctionsRouter router;
     ERC721AMock collection;
     MockERC20 token;
@@ -67,6 +67,7 @@ contract RevenueShareTest is Test {
     event Activated(uint256 indexed periodId);
     event Deactivated(uint256 indexed periodId);
     event ClaimTimeSet(uint256 indexed time);
+    event GasLimitSet(uint32 indexed gasLimit);
     event EmergencyWithdrawal(uint256 indexed amount);
 
     /*//////////////////////////////////////////////////////////////
@@ -74,7 +75,7 @@ contract RevenueShareTest is Test {
     //////////////////////////////////////////////////////////////*/
 
     function setUp() external virtual {
-        deployer = new DeployRevenueShare();
+        deployer = new DeployRarityRewards();
         (consumer, helperConfig) = deployer.run();
 
         networkConfig = helperConfig.getActiveNetworkConfig();
@@ -120,7 +121,7 @@ contract RevenueShareTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.startTime, block.timestamp);
         assertEq(period.endTime, block.timestamp + 30 days);
         assertEq(period.amount, 100 ether);
@@ -146,7 +147,7 @@ contract RevenueShareTest is Test {
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.startTime, startTime);
         assertEq(period.endTime, startTime + 30 days);
         assertEq(period.amount, initialAmount + newAmount);
@@ -204,7 +205,11 @@ contract RevenueShareTest is Test {
         uint256 startTime = block.timestamp + 1 days;
 
         // expect revert
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeInactive.selector, RarityRewards.Status.ACTIVE
+            )
+        );
 
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
@@ -230,7 +235,11 @@ contract RevenueShareTest is Test {
         uint256 newAmount = 50 ether;
 
         // expect revert
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeInactive.selector, RarityRewards.Status.EXPIRED
+            )
+        );
 
         vm.prank(owner);
         consumer.deposit(0, address(token), newAmount, startTime);
@@ -253,7 +262,7 @@ contract RevenueShareTest is Test {
         uint256 newAmount = 50 ether;
 
         // expect revert
-        vm.expectRevert(RevenueShare.RevenueShare__InvalidTokenAddress.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__InvalidTokenAddress.selector);
 
         vm.prank(owner);
         consumer.deposit(0, address(123445), newAmount, startTime);
@@ -270,7 +279,7 @@ contract RevenueShareTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 0);
 
         vm.prank(owner);
@@ -304,7 +313,7 @@ contract RevenueShareTest is Test {
         consumer.deposit(0, address(token), 100 ether, block.timestamp);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 0);
 
         vm.expectRevert("Only callable by owner");
@@ -322,7 +331,11 @@ contract RevenueShareTest is Test {
         vm.stopPrank();
 
         // expect revert
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeInactive.selector, RarityRewards.Status.ACTIVE
+            )
+        );
 
         vm.prank(owner);
         consumer.activate(0);
@@ -339,7 +352,11 @@ contract RevenueShareTest is Test {
         vm.warp(block.timestamp + 31 days);
 
         // expect revert
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeInactive.selector, RarityRewards.Status.EXPIRED
+            )
+        );
 
         vm.prank(owner);
         consumer.activate(0);
@@ -355,10 +372,10 @@ contract RevenueShareTest is Test {
 
         vm.startPrank(owner);
         token.approve(address(consumer), amount);
-        consumer.deposit(0, address(token), amount, block.timestamp);
+        consumer.deposit(0, address(token), amount, block.timestamp + 1 days);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.amount, amount);
 
         uint256 balanceBefore = token.balanceOf(owner);
@@ -383,7 +400,7 @@ contract RevenueShareTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(period.amount, amount);
 
         // make it expired
@@ -443,7 +460,7 @@ contract RevenueShareTest is Test {
         consumer.deposit(0, address(token), amount, block.timestamp);
         vm.stopPrank();
 
-        vm.expectRevert(RevenueShare.RevenueShare__NothingToWithdraw.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__NothingToWithdraw.selector);
 
         vm.prank(owner);
         consumer.withdraw(0);
@@ -459,7 +476,11 @@ contract RevenueShareTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodActive.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeInactive.selector, RarityRewards.Status.ACTIVE
+            )
+        );
 
         vm.prank(owner);
         consumer.withdraw(0);
@@ -479,7 +500,7 @@ contract RevenueShareTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        RevenueShare.ClaimPeriod memory period = consumer.getClaimPeriod(0);
+        RarityRewards.ClaimPeriod memory period = consumer.getClaimPeriod(0);
         assertEq(uint256(period.status), 1);
 
         vm.prank(owner);
@@ -514,11 +535,14 @@ contract RevenueShareTest is Test {
 
         vm.startPrank(owner);
         token.approve(address(consumer), amount);
-        consumer.deposit(0, address(token), amount, block.timestamp);
+        consumer.deposit(0, address(token), amount, block.timestamp + 1 days);
         vm.stopPrank();
 
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodInactive.selector);
-
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeActive.selector, RarityRewards.Status.INACTIVE
+            )
+        );
         vm.prank(owner);
         consumer.deactivate(0);
     }
@@ -574,6 +598,43 @@ contract RevenueShareTest is Test {
 
         vm.prank(USER);
         consumer.setClaimTime(newDuration);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                         TEST SET GAS LIMIT
+    //////////////////////////////////////////////////////////////*/
+
+    // success
+    function test__SetGasLimit() public {
+        address owner = consumer.owner();
+        uint32 newGasLimit = 200_000;
+
+        vm.prank(owner);
+        consumer.setGasLimit(newGasLimit);
+
+        assertEq(consumer.getGasLimit(), newGasLimit);
+    }
+
+    // events
+    function test__Emit__GasLimitSet() public {
+        address owner = consumer.owner();
+        uint32 newGasLimit = 200_000;
+
+        vm.expectEmit(true, true, true, true);
+        emit GasLimitSet(newGasLimit);
+
+        vm.prank(owner);
+        consumer.setGasLimit(newGasLimit);
+    }
+
+    // reverts
+    function test__Revert__OnlyOwnerCanSetGasLimit() public {
+        uint32 newGasLimit = 200_000;
+
+        vm.expectRevert("Only callable by owner");
+
+        vm.prank(USER);
+        consumer.setGasLimit(newGasLimit);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -644,7 +705,7 @@ contract RevenueShareTest is Test {
         consumer.activate(0);
         vm.stopPrank();
 
-        vm.expectRevert(RevenueShare.RevenueShare__NothingToWithdraw.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__NothingToWithdraw.selector);
 
         vm.prank(owner);
         consumer.emergencyWithdraw(address(token));
@@ -659,8 +720,10 @@ contract RevenueShareTest is Test {
         bytes memory response = "YELLOW";
         uint256 balanceBefore = token.balanceOf(USER);
 
+        uint256 gasLeft = gasleft();
         vm.prank(USER);
         consumer.claim(0, 1);
+        console.log("Claim gas: ", gasLeft - gasleft());
 
         fulfilled(response);
 
@@ -671,6 +734,12 @@ contract RevenueShareTest is Test {
         // rewards calculation -> response == YELLOW
         // reward = 1000 ether / 5 / 80 = 2.5 ether
         assertEq(claimed, 2.5 ether);
+
+        // 2 args: 412671 gas
+        // new: 411607
+
+        // 5 args: 441064 gas
+        // 2 string, 3 bytes: 441704
     }
 
     // events
@@ -693,7 +762,7 @@ contract RevenueShareTest is Test {
     function test__Revert__ClaimByWrongUser() public hasDeposits {
         address wrongUser = makeAddr("wrong-user");
 
-        vm.expectRevert(RevenueShare.RevenueShare__InvalidTokenOwner.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__InvalidTokenOwner.selector);
         vm.prank(wrongUser);
         consumer.claim(0, 1);
     }
@@ -702,7 +771,7 @@ contract RevenueShareTest is Test {
         vm.prank(USER);
         consumer.claim(0, 1);
 
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPending.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__ClaimPending.selector);
         vm.prank(USER);
         consumer.claim(0, 12);
     }
@@ -715,7 +784,7 @@ contract RevenueShareTest is Test {
 
         fulfilled(response);
 
-        vm.expectRevert(RevenueShare.RevenueShare__AlreadyClaimed.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__AlreadyClaimed.selector);
         vm.prank(USER);
         consumer.claim(0, 1);
     }
@@ -725,7 +794,11 @@ contract RevenueShareTest is Test {
         vm.prank(owner);
         consumer.deactivate(0);
 
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodInactive.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeActive.selector, RarityRewards.Status.INACTIVE
+            )
+        );
         vm.prank(USER);
         consumer.claim(0, 1);
     }
@@ -733,9 +806,36 @@ contract RevenueShareTest is Test {
     function test__Revert__ClaimWhenClaimPeriodExpired() public hasDeposits {
         vm.warp(block.timestamp + 31 days);
 
-        vm.expectRevert(RevenueShare.RevenueShare__ClaimPeriodExpired.selector);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                RarityRewards.RarityRewards__ClaimPeriodMustBeActive.selector, RarityRewards.Status.EXPIRED
+            )
+        );
         vm.prank(USER);
         consumer.claim(0, 1);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                              FULFILLMENT
+    //////////////////////////////////////////////////////////////*/
+
+    function test__Fulfill() public onlyAnvil hasDeposits {
+        bytes memory response = "YELLOW";
+
+        vm.prank(USER);
+        consumer.claim(0, 1);
+
+        // fulfill the request
+        uint256 gasLeft = gasleft();
+        fulfilled(response);
+        console.log("Fulfillment gas: ", gasLeft - gasleft());
+
+        // check if the last response is set correctly
+        assertEq(consumer.getLastResponse(), response);
+
+        // GAS REPORT
+        // 1. 222444
+        // 2. 222527
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -770,14 +870,14 @@ contract RevenueShareTest is Test {
 
         fulfilled(response);
 
-        RevenueShare.Claims memory claims = consumer.getClaims(0, USER);
+        RarityRewards.Claims memory claims = consumer.getClaims(0, USER);
 
         assertEq(claims.numClaimed, 1);
     }
 
     // reverts
     function test__Revert__GetInvalidTrait() public {
-        vm.expectRevert(RevenueShare.RevenueShare__InvalidTrait.selector);
+        vm.expectRevert(RarityRewards.RarityRewards__InvalidTrait.selector);
         consumer.getTraitSize("GREY");
     }
 }
